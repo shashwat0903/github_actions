@@ -1,0 +1,88 @@
+name: Commit CI Workflow
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check-commits:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Check commit messages
+      run: |
+        # Get the commit messages
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          # For pull requests, check all commits in the PR
+          COMMITS=$(git log --format=%s ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+        else
+          # For pushes, check the latest commit
+          COMMITS=$(git log -1 --format=%s)
+        fi
+        
+        # Define regex patterns for valid commit messages
+        FEAT_PATTERN="^feat(\(.+\))?:.*"
+        FIX_PATTERN="^fix(\(.+\))?:.*"
+        DOCS_PATTERN="^docs(\(.+\))?:.*"
+        STYLE_PATTERN="^style(\(.+\))?:.*"
+        REFACTOR_PATTERN="^refactor(\(.+\))?:.*"
+        TEST_PATTERN="^test(\(.+\))?:.*"
+        CHORE_PATTERN="^chore(\(.+\))?:.*"
+        
+        # Check if any commit message doesn't match conventional commit format
+        INVALID_COMMITS=0
+        
+        echo "Checking commit messages..."
+        
+        while IFS= read -r COMMIT; do
+          if [[ ! $COMMIT =~ $FEAT_PATTERN && ! $COMMIT =~ $FIX_PATTERN && ! $COMMIT =~ $DOCS_PATTERN && \
+                ! $COMMIT =~ $STYLE_PATTERN && ! $COMMIT =~ $REFACTOR_PATTERN && ! $COMMIT =~ $TEST_PATTERN && \
+                ! $COMMIT =~ $CHORE_PATTERN ]]; then
+            echo "❌ Invalid commit message format: $COMMIT"
+            echo "   Commit messages should follow the Conventional Commits format:"
+            echo "   type(scope): description"
+            echo "   Examples: feat: add new feature, fix(auth): fix login bug"
+            INVALID_COMMITS=$((INVALID_COMMITS+1))
+          else
+            echo "✅ Valid commit message: $COMMIT"
+          fi
+        done <<< "$COMMITS"
+        
+        # Exit with error if any invalid commits were found
+        if [ $INVALID_COMMITS -gt 0 ]; then
+          echo "Found $INVALID_COMMITS invalid commit messages. Please fix them."
+          exit 1
+        else
+          echo "All commit messages follow the conventional format."
+        fi
+    
+    - name: Check file changes
+      run: |
+        # For simplicity, check that commits don't modify certain sensitive files
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+        else
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+        fi
+        
+        echo "Checking changed files..."
+        
+        # List of sensitive files that should not be changed directly
+        SENSITIVE_FILES=("config/secrets.json" ".env" "credentials.json")
+        
+        for FILE in "${SENSITIVE_FILES[@]}"; do
+          if echo "$CHANGED_FILES" | grep -q "^$FILE$"; then
+            echo "❌ Detected changes to sensitive file: $FILE"
+            echo "   Please remove this file from your commit."
+            exit 1
+          fi
+        done
+        
+        echo "✅ No changes to sensitive files detected."
