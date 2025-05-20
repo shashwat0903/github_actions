@@ -1,0 +1,62 @@
+name: Release Workflow
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+      - 'pyproject.toml'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Get version from package.json
+        id: package-version
+        if: hashFiles('package.json') != ''
+        uses: martinbeentjes/npm-get-version-action@v1.3.1
+
+      - name: Get version from pyproject.toml
+        id: python-version
+        if: hashFiles('pyproject.toml') != ''
+        run: |
+          if [ -f pyproject.toml ]; then
+            VERSION=$(grep -oP '(?<=version = ")[^"]+' pyproject.toml || grep -oP "(?<=version = ')[^']+" pyproject.toml)
+            echo "::set-output name=version::$VERSION"
+          fi
+
+      - name: Create Tag
+        run: |
+          VERSION=${{ steps.package-version.outputs.version || steps.python-version.outputs.version }}
+          if [ -n "$VERSION" ]; then
+            echo "Creating tag v$VERSION"
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git tag -a "v$VERSION" -m "Release version $VERSION"
+            git push origin "v$VERSION"
+          else
+            echo "No version found in package.json or pyproject.toml"
+            exit 1
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release v${{ steps.package-version.outputs.version || steps.python-version.outputs.version }}
+          tag_name: v${{ steps.package-version.outputs.version || steps.python-version.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
