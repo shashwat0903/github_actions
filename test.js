@@ -1,13 +1,22 @@
-const { add } = require('./index');
+const { add, sumArray } = require('./index');
 
-// Simple test
-const result = add(2, 3);
-const expected = 5;
+// Test add function
+const addResult = add(2, 3);
+const addExpected = 5;
 
-if (result !== expected) {
-  console.error(`Test failed! Expected ${expected} but got ${result}`);
+if (addResult !== addExpected) {
+  console.error(`Add test failed! Expected ${addExpected} but got ${addResult}`);
   process.exit(1);
 }
 
-console.log('Test passed!');
+// Test sumArray function (uses lodash)
+const sumResult = sumArray([1, 2, 3, 4, 5]);
+const sumExpected = 15;
+
+if (sumResult !== sumExpected) {
+  console.error(`Sum test failed! Expected ${sumExpected} but got ${sumResult}`);
+  process.exit(1);
+}
+
+console.log('All tests passed!');
 process.exit(0);

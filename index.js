@@ -1,5 +1,11 @@
+const _ = require('lodash');
+
 function add(a, b) {
   return a + b;
 }
 
-module.exports = { add };
+function sumArray(numbers) {
+  return _.sum(numbers);
+}
+
+module.exports = { add, sumArray };
